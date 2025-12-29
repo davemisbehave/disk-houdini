@@ -44,30 +44,75 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 PRETEND_MODE=0
+DISK_SPECIFIED=0
 
-# Process arguments
-for ARG in "$@"; do
-	case "$ARG" in
-		--pretend)	PRETEND_MODE=1 ;;
-        *)
-            # Exit 1 if any argument does not match
-            echo "Error: Invalid argument detected: $ARG"
+while (( $# > 0 )); do
+    ARG="$1"
+
+    case $ARG in
+		-h|--help)
+			tput bold; echo "Usage:"; tput sgr0
+			echo '\t'"$0 [-h|--help] [-p] [-d <file>]"
+            
+            tput bold; echo '\n'"Description:"; tput sgr0
+			echo '\t'"This script performs secure erases on disks and creates"
+			echo '\t'"a log file to go along with it."
+
+			tput bold; echo '\n'"Options:"; tput sgr0
+			echo '\t'"-h, --help	Show this help message and exit."
+			echo '\t'"-p		Pretend Mode (Dry-run). Does not make actual changes to the disk."
+			echo '\t'"-d <file>	Specify the target disk file."
+
+			tput bold; echo '\n'"Examples:"; tput sgr0
+			echo '\t'"$0"
+			echo '\t'"$0 -p"
+			echo '\t'"$0 -d /dev/disk5"
+			echo '\t'"$0 -p -d /dev/disk4"
             exit 1
             ;;
+		-p)
+            PRETEND_MODE=1
+            ;;
+		-d)
+            if [[ $DISK_SPECIFIED -eq 0 ]]; then
+                if (( $# > 1 )); then
+                    # Store next argument (disk file name)
+                    DISK_FILE="$2"
+                    # Skip the next argument (disk file name) in the next iteration
+                    shift
+                    DISK_SPECIFIED=1
+                else
+                    echo "No disk specified for -d option. Exiting script."
+                    exit 1
+				fi
+			else
+				echo "-d option specified multiple times. Exiting script."
+			fi
+			;;
+		*)
+			echo "Error: Invalid argument detected: $ARG"
+			exit 1
+			;;
 	esac
+
+	# Move to the next argument
+	shift
 done
 
 # Determine boot disk
 BOOT_DISK="$(diskutil info / | awk -F': *' '/Part of Whole/ {print $2; exit}')"
 
-# List connected drives
-diskutil list
+# If no disk was specified with -d, ask the user interactively
+if [[ DISK_SPECIFIED -eq 0 ]]; then
+	# List connected drives
+	diskutil list
 
-# Select disk
-tput bold; read "?Enter disk number: " DISK_NUMBER; tput sgr0
+	# Select disk
+	tput bold; read "?Enter disk number: " DISK_NUMBER; tput sgr0
 
-# Store full path to disk file
-DISK_FILE="/dev/disk$DISK_NUMBER"
+	# Store full path to disk file
+	DISK_FILE="/dev/disk$DISK_NUMBER"
+fi
 
 # Check if specified disk exists
 if [[ ! -e "$DISK_FILE" ]]; then
@@ -136,13 +181,16 @@ diskutil list $DISK_FILE
 
 # Ask user to confirm
 if [[ $PRETEND_MODE -eq 1 ]]; then
-	echo "--pretend option enabled: Secure erase will be simulated. No data on disk$DISK_NUMBER will be changed."
+	echo "Pretend option enabled: Secure erase will be simulated. No data on $DISK_FILE will be changed."
 fi
 tput bold; read "?Type 'tak' and press enter to start erasing: " CONFIRMATION; tput sgr0
 [[ $CONFIRMATION == "tak" ]] || {
     tput bold; echo "No secure erase was performed. Exiting script."; tput sgr0
     exit 1
 }
+
+# Keep the console output tidy
+printf '\n'
 
 # Unmount disk
 if [[ $PRETEND_MODE -eq 0 ]]; then
@@ -171,10 +219,14 @@ fi
 echo "Model:"'\t''\t'"$DISK_MODEL" >> $LOG_FILE
 echo "Serial Number:"'\t'"$DISK_SERIAL" >> $LOG_FILE
 echo "Size:"'\t''\t'"$DISK_SIZE" >> $LOG_FILE
-echo "Erase level:"'\t'"$ERASE_LEVEL ($ERASE_LVL_DESCRIPTION)" >> $LOG_FILE
+echo "Erase level:"'\t'"$ERASE_LEVEL ($ERASE_LVL_DESCRIPTION)"'\n' >> $LOG_FILE
 
 # Print the time and date the erase process was started at
-echo '\n'"Starting secure erase on $(date)" | tee -a $LOG_FILE
+if [[ $PRETEND_MODE -eq 0 ]]; then
+	echo "Starting secure erase on $(date)" | tee -a $LOG_FILE
+else
+	echo "Starting pretend-secure erase on $(date)" | tee -a $LOG_FILE
+fi
 
 # Record start time (epoch seconds)
 START_EPOCH=$(date +%s)
@@ -211,7 +263,7 @@ fi
 tput sgr0
 
 if [[ $PRETEND_MODE -eq 1 ]]; then
-	echo "--pretend option enabled: No changes were actually made to the disk." | tee -a $LOG_FILE
+	echo "Pretend option enabled: No changes were actually made to the disk." | tee -a $LOG_FILE
 fi
 
 # Calculate elapsed time
