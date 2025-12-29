@@ -45,6 +45,8 @@ fi
 
 PRETEND_MODE=0
 DISK_SPECIFIED=0
+LEVEL_SPECIFIED=0
+OVERRIDE_CONFIRMATION=0
 
 while (( $# > 0 )); do
     ARG="$1"
@@ -73,12 +75,15 @@ while (( $# > 0 )); do
 		-p)
             PRETEND_MODE=1
             ;;
+		-o)
+            OVERRIDE_CONFIRMATION=1
+            ;;
 		-d)
             if [[ $DISK_SPECIFIED -eq 0 ]]; then
                 if (( $# > 1 )); then
                     # Store next argument (disk file name)
                     DISK_FILE="$2"
-                    # Skip the next argument (disk file name) in the next iteration
+                    # Skip the next argument in the next iteration
                     shift
                     DISK_SPECIFIED=1
                 else
@@ -87,6 +92,22 @@ while (( $# > 0 )); do
 				fi
 			else
 				echo "-d option specified multiple times. Exiting script."
+			fi
+			;;
+		-l)
+            if [[ $LEVEL_SPECIFIED -eq 0 ]]; then
+                if (( $# > 1 )); then
+                    # Store next argument (erase level)
+					ERASE_LEVEL="$2"
+                    # Skip the next argument in the next iteration
+                    shift
+					LEVEL_SPECIFIED=1
+                else
+                    echo "No level specified for -l option. Exiting script."
+                    exit 1
+				fi
+			else
+				echo "-l option specified multiple times. Exiting script."
 			fi
 			;;
 		*)
@@ -126,14 +147,17 @@ if [[ "$DISK_FILE" == "/dev/$BOOT_DISK" ]]; then
     exit 1
 fi
 
-# Select erase level
-echo '\n'"Erase levels:"
-echo "0 - $ERASE_LVL_0_DESCRIPTION."
-echo "1 - $ERASE_LVL_1_DESCRIPTION."
-echo "2 - $ERASE_LVL_2_DESCRIPTION."
-echo "3 - $ERASE_LVL_3_DESCRIPTION."
-echo "4 - $ERASE_LVL_4_DESCRIPTION."
-tput bold; read "?Enter erase level [0 - 4]: " ERASE_LEVEL; tput sgr0
+# If no erase level was specified with -l, ask the user interactively
+if [[ LEVEL_SPECIFIED -eq 0 ]]; then
+	# Select erase level
+	echo '\n'"Erase levels:"
+	echo "0 - $ERASE_LVL_0_DESCRIPTION."
+	echo "1 - $ERASE_LVL_1_DESCRIPTION."
+	echo "2 - $ERASE_LVL_2_DESCRIPTION."
+	echo "3 - $ERASE_LVL_3_DESCRIPTION."
+	echo "4 - $ERASE_LVL_4_DESCRIPTION."
+	tput bold; read "?Enter erase level [0 - 4]: " ERASE_LEVEL; tput sgr0
+fi
 
 # Check if selected erase level is valid
 if [[ ! $ERASE_LEVEL == [0-4] ]]; then
@@ -164,10 +188,13 @@ DISK_MODEL=$(diskutil info $DISK_FILE | awk -F': *' '/Device \/ Media Name/ {pri
 DISK_SIZE=$(diskutil info "/dev/disk4" | awk -F': *| \\(' '/Disk Size/ {print $2}')
 
 # Read back settings for confirmation
+if [[ $DISK_SPECIFIED -eq 0 || $LEVEL_SPECIFIED -eq 0 ]]; then
+	printf '\n'
+fi
 if [[ $PRETEND_MODE -eq 0 ]]; then
-	echo '\n'"The secure erase will proceed with the following parameters:"
+	echo "The secure erase will proceed with the following parameters:"
 else
-	echo '\n'"The pretended secure erase will proceed with the following parameters:"
+	echo "The pretended secure erase will proceed with the following parameters:"
 fi
 echo "Disk:"'\t''\t'"$DISK_FILE"
 echo "Model:"'\t''\t'"$DISK_MODEL"
@@ -183,11 +210,15 @@ diskutil list $DISK_FILE
 if [[ $PRETEND_MODE -eq 1 ]]; then
 	echo "Pretend option enabled: Secure erase will be simulated. No data on $DISK_FILE will be changed."
 fi
-tput bold; read "?Type 'tak' and press enter to start erasing: " CONFIRMATION; tput sgr0
-[[ $CONFIRMATION == "tak" ]] || {
-    tput bold; echo "No secure erase was performed. Exiting script."; tput sgr0
+
+# Ask user for confirmation, unless overridden with -o argument
+if [[ $OVERRIDE_CONFIRMATION -eq 0 ]]; then
+	tput bold; read "?Type 'tak' and press enter to start erasing: " CONFIRMATION; tput sgr0
+	[[ $CONFIRMATION == "tak" ]] || {
+		tput bold; echo "No secure erase was performed. Exiting script."; tput sgr0
     exit 1
-}
+	}
+fi
 
 # Keep the console output tidy
 printf '\n'
