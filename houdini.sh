@@ -23,8 +23,8 @@ ERASE_LVL_4_DESCRIPTION="Three-pass erase, consisting of two random fills plus a
 
 # Ensure macOS
 if [[ "$(uname -s)" != "Darwin" ]]; then
-  echo "This script is for macOS only."
-  exit 1
+	tput bold; echo "This script is for macOS only."; tput sgr0
+	exit 1
 fi
 
 # Export Homebrew paths
@@ -32,9 +32,9 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 # Ensure smartctl exists
 if ! command -v smartctl >/dev/null 2>&1; then
-  echo "smartctl not installed."
-  echo "Install with: brew install smartmontools"
-  exit 1
+	tput bold; echo "smartctl not installed."; tput sgr0
+	echo "Install with: brew install smartmontools"
+	exit 1
 fi
 
 # Ensure sudo or root
@@ -42,6 +42,20 @@ if [[ $EUID -ne 0 ]]; then
     echo "This script must be run with sudo or as root. Exiting script."
     exit 1
 fi
+
+PRETEND_MODE=0
+
+# Process arguments
+for ARG in "$@"; do
+	case "$ARG" in
+		--pretend)	PRETEND_MODE=1 ;;
+        *)
+            # Exit 1 if any argument does not match
+            echo "Error: Invalid argument detected: $ARG"
+            exit 1
+            ;;
+	esac
+done
 
 # Determine boot disk
 BOOT_DISK="$(diskutil info / | awk -F': *' '/Part of Whole/ {print $2; exit}')"
@@ -63,7 +77,7 @@ fi
 
 # Refuse to erase boot disk
 if [[ "$DISK_FILE" == "/dev/$BOOT_DISK" ]]; then
-    tput bold; echo "Cannot to securely erase the boot disk ($BOOT_DISK). Exiting script"; tput sgr0
+    tput bold; echo "Cannot securely erase the boot disk ($BOOT_DISK). Exiting script"; tput sgr0
     exit 1
 fi
 
@@ -105,7 +119,11 @@ DISK_MODEL=$(diskutil info $DISK_FILE | awk -F': *' '/Device \/ Media Name/ {pri
 DISK_SIZE=$(diskutil info "/dev/disk4" | awk -F': *| \\(' '/Disk Size/ {print $2}')
 
 # Read back settings for confirmation
-echo '\n'"The secure erase will proceed with the following parameters:"
+if [[ $PRETEND_MODE -eq 0 ]]; then
+	echo '\n'"The secure erase will proceed with the following parameters:"
+else
+	echo '\n'"The pretended secure erase will proceed with the following parameters:"
+fi
 echo "Disk:"'\t''\t'"$DISK_FILE"
 echo "Model:"'\t''\t'"$DISK_MODEL"
 if [[ $HAS_SERIAL -eq 0 ]]; then
@@ -117,6 +135,9 @@ echo "Current partition map for $DISK_FILE:"
 diskutil list $DISK_FILE
 
 # Ask user to confirm
+if [[ $PRETEND_MODE -eq 1 ]]; then
+	echo "--pretend option enabled: Secure erase will be simulated. No data on disk$DISK_NUMBER will be changed."
+fi
 tput bold; read "?Type 'tak' and press enter to start erasing: " CONFIRMATION; tput sgr0
 [[ $CONFIRMATION == "tak" ]] || {
     tput bold; echo "No secure erase was performed. Exiting script."; tput sgr0
@@ -124,11 +145,16 @@ tput bold; read "?Type 'tak' and press enter to start erasing: " CONFIRMATION; t
 }
 
 # Unmount disk
-diskutil unmountDisk $DISK_FILE
-STATUS=$?
-if [[ $STATUS -ne 0 ]]; then
-    tput bold; echo "Could not unmount $DISK_FILE. Exiting script."; tput sgr0
-    exit 1
+if [[ $PRETEND_MODE -eq 0 ]]; then
+	diskutil unmountDisk $DISK_FILE
+	STATUS=$?
+	if [[ $STATUS -ne 0 ]]; then
+		tput bold; echo "Could not unmount $DISK_FILE. Exiting script."; tput sgr0
+		exit 1
+	fi
+else
+	echo "** Pretending to unmount $DISK_FILE **"
+	sleep 1
 fi
 
 # Create format log directory if it doesn't already exist
@@ -154,11 +180,14 @@ echo '\n'"Starting secure erase on $(date)" | tee -a $LOG_FILE
 START_EPOCH=$(date +%s)
 
 # Perform secure erase
-diskutil secureErase $ERASE_LEVEL $DISK_FILE
-STATUS=$?
-#STATUS=0
-#echo "-> PRETENDING TO ERASE $DISK_FILE <-" | tee -a $LOG_FILE
-#sleep 3
+if [[ $PRETEND_MODE -eq 0 ]]; then
+	diskutil secureErase $ERASE_LEVEL $DISK_FILE
+	STATUS=$?
+else
+	STATUS=0
+	echo "** PRETENDING TO ERASE $DISK_FILE **"
+	sleep 3
+fi
 
 # Record end time and date
 END_DATE=$(date)
@@ -167,11 +196,23 @@ END_EPOCH=$(date +%s)
 # Print the time and date the erase process was concluded at
 tput bold
 if [[ $STATUS -eq 0 ]]; then
-    echo "Secure erase completed successfully on $END_DATE" | tee -a $LOG_FILE
+	if [[ $PRETEND_MODE -eq 0 ]]; then
+		echo "Secure erase completed successfully on $END_DATE" | tee -a $LOG_FILE
+	else
+		echo "Pretend-secure erase completed successfully on $END_DATE." | tee -a $LOG_FILE
+	fi
 else
-    echo "Secure erase failed (exit code: $status) on $END_DATE" | tee -a $LOG_FILE
+	if [[ $PRETEND_MODE -eq 0 ]]; then
+		echo "Secure erase failed (exit code: $STATUS) on $END_DATE" | tee -a $LOG_FILE
+	else
+		echo "Pretend-secure erase failed (exit code: $STATUS) on $END_DATE" | tee -a $LOG_FILE
+	fi
 fi
 tput sgr0
+
+if [[ $PRETEND_MODE -eq 1 ]]; then
+	echo "--pretend option enabled: No changes were actually made to the disk." | tee -a $LOG_FILE
+fi
 
 # Calculate elapsed time
 ELAPSED=$((END_EPOCH - START_EPOCH))
