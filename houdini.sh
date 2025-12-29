@@ -54,22 +54,25 @@ while (( $# > 0 )); do
     case $ARG in
 		-h|--help)
 			tput bold; echo "Usage:"; tput sgr0
-			echo '\t'"$0 [-h|--help] [-p] [-d <file>]"
+			echo '\t'"$0 [-h|--help] [-p] [-o] [-d <file>] [-l <lvl>]"
             
             tput bold; echo '\n'"Description:"; tput sgr0
-			echo '\t'"This script performs secure erases on disks and creates"
+			echo '\t'"This script performs a secure erase on a disk and creates"
 			echo '\t'"a log file to go along with it."
 
 			tput bold; echo '\n'"Options:"; tput sgr0
 			echo '\t'"-h, --help	Show this help message and exit."
 			echo '\t'"-p		Pretend Mode (Dry-run). Does not make actual changes to the disk."
-			echo '\t'"-d <file>	Specify the target disk file."
+			echo '\t'"-d <file>	Specify target disk file."
+			echo '\t'"-l <lvl>	Specify erase level [0 - 4]."
 
 			tput bold; echo '\n'"Examples:"; tput sgr0
+			
 			echo '\t'"$0"
 			echo '\t'"$0 -p"
 			echo '\t'"$0 -d /dev/disk5"
-			echo '\t'"$0 -p -d /dev/disk4"
+			echo '\t'"$0 -o -d /dev/disk4"
+			echo '\t'"$0 -d /dev/disk6 -l 2 -o -p"
             exit 1
             ;;
 		-p)
