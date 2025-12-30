@@ -51,6 +51,7 @@ SKIP_CONFIRMATION=0
 NO_LOGS=0
 HAS_SERIAL=0
 MODEL_SPECIFIED=0
+LABEL_SPECIFIED=0
 
 while (( $# > 0 )); do
     ARG="$1"
@@ -58,7 +59,7 @@ while (( $# > 0 )); do
     case $ARG in
 		-h|--help)
 			tput bold; echo "Usage:"; tput sgr0
-			echo '\t'"$0 [-h|--help] [-p|--pretend] [-s|--skip] [-nl|--nolog] [-d|--disk <file>] [-l|--level <level>] [-m|--model <model>] [-sn|--serial <serial>]"
+			echo '\t'"$0 [-h|--help] [-p|--pretend] [-s|--skip] [-nl|--nolog] [-d|--disk <file>] [-lv|--level <level>] [-la|--label <label>] [-m|--model <model>] [-sn|--serial <serial>]"
             
             tput bold; echo '\n'"Description:"; tput sgr0
 			echo '\t'"This script performs a secure erase on a disk and creates"
@@ -70,7 +71,8 @@ while (( $# > 0 )); do
 			echo '\t'"[-s  | --skip]		Skip user confirmation before erasing."
 			echo '\t'"[-nl | --nolog]		Do not write log file."
 			echo '\t'"[-d  | --disk] <file>	Specify target disk file."
-			echo '\t'"[-l  | --level] <level>	Specify erase level [0 - 4]."
+			echo '\t'"[-lv | --level] <level>	Specify erase level [0 - 4]."
+			echo '\t'"[-la | --label] <label>	Specify label."
 			echo '\t'"[-m  | --model] <model>	Specify disk model."
 			echo '\t'"[-sn | --serial] <ser>	Specify disk serial number."
 
@@ -80,8 +82,8 @@ while (( $# > 0 )); do
 			echo '\t'"$0 -p"
 			echo '\t'"$0 -d /dev/disk5"
 			echo '\t'"$0 -nl --disk /dev/disk4"
-			echo '\t'"$0 -d /dev/disk6 -l 2 -s --pretend"
-			echo '\t'"$0"' -m "SSD-69-NI-CE" -sn "42LOL123456789"'
+			echo '\t'"$0 -d /dev/disk6 -lv 2 -s --pretend"
+			echo '\t'"$0"' -m "SSD-69-NI-CE" -sn "42LOL123456789" -la "Discard"'
             exit 1
             ;;
 		-p|--pretend)
@@ -110,7 +112,7 @@ while (( $# > 0 )); do
 				echo "-d/--disk option specified multiple times. Exiting script."
 			fi
 			;;
-		-l|--level)
+		-lv|--level)
             if [[ $LEVEL_SPECIFIED -eq 0 ]]; then
                 if (( $# > 1 )); then
                     # Store next argument (erase level)
@@ -120,11 +122,28 @@ while (( $# > 0 )); do
 					# Flag level as specified
 					LEVEL_SPECIFIED=1
                 else
-                    echo "No level specified for -l/--level option. Exiting script."
+                    echo "No level specified for -lv/--level option. Exiting script."
                     exit 1
 				fi
 			else
-				echo "-l/--level option specified multiple times. Exiting script."
+				echo "-lv/--level option specified multiple times. Exiting script."
+			fi
+			;;
+		-la|--label)
+            if [[ $LABEL_SPECIFIED -eq 0 ]]; then
+                if (( $# > 1 )); then
+                    # Store next argument (label)
+					LABEL="$2"
+                    # Skip the next argument in the next iteration
+                    shift
+					# Flag label as specified
+					LABEL_SPECIFIED=1
+                else
+                    echo "No label specified for -la/--label option. Exiting script."
+                    exit 1
+				fi
+			else
+				echo "-la/--label option specified multiple times. Exiting script."
 			fi
 			;;
 		-m|--model)
@@ -198,7 +217,7 @@ if [[ "$DISK_FILE" == "/dev/$BOOT_DISK" ]]; then
     exit 1
 fi
 
-# If no erase level was specified with -l, ask the user interactively
+# If no erase level was specified with -lv, ask the user interactively
 if [[ LEVEL_SPECIFIED -eq 0 ]]; then
 	# Select erase level
 	echo '\n'"Erase levels:"
@@ -259,6 +278,9 @@ echo "Model:"'\t''\t'"$DISK_MODEL"
 if [[ $HAS_SERIAL -eq 1 ]]; then
     echo "Serial Number:"'\t'"$DISK_SERIAL"
 fi
+if [[ $LABEL_SPECIFIED -eq 1 ]]; then
+    echo "Label:"'\t''\t'"$LABEL"
+fi
 echo "Size:"'\t''\t'"$DISK_SIZE"
 echo "Erase level:"'\t'"$ERASE_LEVEL ($ERASE_LVL_DESCRIPTION)"
 echo "Current partition map for $DISK_FILE:"
@@ -299,14 +321,24 @@ if [[ $NO_LOGS -eq 1 ]]; then
 	# Set /dev/null as file to write logs to if the -nl (no logs) option was specified
 	LOG_FILE=/dev/null
 else
-	# If the -nl option was not specified, then create a file name based on disk info and date
+	# Set label for file name
+	if [[ $LABEL_SPECIFIED -eq 1 ]]; then
+		# Prepend a dash to the label for the file name
+		FILE_LABEL="-$LABEL"
+	else
+		# Blank label
+		FILE_LABEL=""
+	fi
+
+	# Create a file name based on disk info and date
 	if [[ $HAS_SERIAL -eq 1 ]]; then
 		# Set file name (with serial number)
-		LOG_FILE=$LOG_DIRECOTRY/$DISK_MODEL-$DISK_SERIAL-$(date "+%Y-%m-%d-%H-%M-%S").log
+		LOG_FILE=$LOG_DIRECOTRY/$DISK_MODEL-$DISK_SERIAL$FILE_LABEL-$(date "+%Y-%m-%d-%H-%M-%S").log
 	else
 		# Set file name (without serial number)
-		LOG_FILE=$LOG_DIRECOTRY/$DISK_MODEL-$(date "+%Y-%m-%d-%H-%M-%S").log
+		LOG_FILE=$LOG_DIRECOTRY/$DISK_MODEL$FILE_LABEL-$(date "+%Y-%m-%d-%H-%M-%S").log
 	fi
+	
 	# Create log directory if it doesn't already exist
 	mkdir -p $LOG_DIRECOTRY
 fi
@@ -314,6 +346,9 @@ fi
 # Log disk info
 echo "Model:"'\t''\t'"$DISK_MODEL" >> $LOG_FILE
 echo "Serial Number:"'\t'"$DISK_SERIAL" >> $LOG_FILE
+if [[ $LABEL_SPECIFIED -eq 1 ]]; then
+    echo "Label:"'\t''\t'"$LABEL"
+fi
 echo "Size:"'\t''\t'"$DISK_SIZE" >> $LOG_FILE
 echo "Erase level:"'\t'"$ERASE_LEVEL ($ERASE_LVL_DESCRIPTION)"'\n' >> $LOG_FILE
 
