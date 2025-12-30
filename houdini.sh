@@ -12,7 +12,7 @@
 set -uo pipefail
 
 # Directory to store logs of each erase process
-LOG_DIRECOTRY="$HOME/Format Logs"
+LOG_DIRECOTRY="$HOME/Houdini Logs"
 
 # Erase level descriptions
 ERASE_LVL_0_DESCRIPTION="Single-pass zero fill erase"
@@ -43,10 +43,12 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
+# Defaults for flags assumed before processing arguments (which might change their values)
 PRETEND_MODE=0
 DISK_SPECIFIED=0
 LEVEL_SPECIFIED=0
-OVERRIDE_CONFIRMATION=0
+SKIP_CONFIRMATION=0
+NO_LOGS=0
 
 while (( $# > 0 )); do
     ARG="$1"
@@ -54,7 +56,7 @@ while (( $# > 0 )); do
     case $ARG in
 		-h|--help)
 			tput bold; echo "Usage:"; tput sgr0
-			echo '\t'"$0 [-h|--help] [-p] [-o] [-d <file>] [-l <lvl>]"
+			echo '\t'"$0 [-h|--help] [-p] [-s] [-d <file>] [-l <lvl>]"
             
             tput bold; echo '\n'"Description:"; tput sgr0
 			echo '\t'"This script performs a secure erase on a disk and creates"
@@ -63,6 +65,7 @@ while (( $# > 0 )); do
 			tput bold; echo '\n'"Options:"; tput sgr0
 			echo '\t'"-h, --help	Show this help message and exit."
 			echo '\t'"-p		Pretend Mode (Dry-run). Does not make actual changes to the disk."
+			echo '\t'"-s		Skip user confirmation before erasing."
 			echo '\t'"-d <file>	Specify target disk file."
 			echo '\t'"-l <lvl>	Specify erase level [0 - 4]."
 
@@ -71,15 +74,18 @@ while (( $# > 0 )); do
 			echo '\t'"$0"
 			echo '\t'"$0 -p"
 			echo '\t'"$0 -d /dev/disk5"
-			echo '\t'"$0 -o -d /dev/disk4"
-			echo '\t'"$0 -d /dev/disk6 -l 2 -o -p"
+			echo '\t'"$0 -s -d /dev/disk4"
+			echo '\t'"$0 -d /dev/disk6 -l 2 -s -p"
             exit 1
             ;;
 		-p)
             PRETEND_MODE=1
             ;;
-		-o)
-            OVERRIDE_CONFIRMATION=1
+		-s)
+            SKIP_CONFIRMATION=1
+            ;;
+		-nl)
+            NO_LOGS=1
             ;;
 		-d)
             if [[ $DISK_SPECIFIED -eq 0 ]]; then
@@ -214,8 +220,8 @@ if [[ $PRETEND_MODE -eq 1 ]]; then
 	echo "Pretend option enabled: Secure erase will be simulated. No data on $DISK_FILE will be changed."
 fi
 
-# Ask user for confirmation, unless overridden with -o argument
-if [[ $OVERRIDE_CONFIRMATION -eq 0 ]]; then
+# Ask user for confirmation, unless overridden with -s argument
+if [[ $SKIP_CONFIRMATION -eq 0 ]]; then
 	tput bold; read "?Type 'tak' and press enter to start erasing: " CONFIRMATION; tput sgr0
 	[[ $CONFIRMATION == "tak" ]] || {
 		tput bold; echo "No secure erase was performed. Exiting script."; tput sgr0
@@ -239,14 +245,21 @@ else
 	sleep 1
 fi
 
-# Create format log directory if it doesn't already exist
-mkdir -p $LOG_DIRECOTRY
-
-# Set file name
-if [[ $HAS_SERIAL -eq 1 ]]; then
-    LOG_FILE=$LOG_DIRECOTRY/$DISK_MODEL-$DISK_SERIAL-$(date "+%Y-%m-%d-%H-%M-%S").log
+# Check if -nl (no logs option) is specified
+if [[ $NO_LOGS -eq 1 ]]; then
+	# Set /dev/null as file to write logs to if the -nl (no logs) option was specified
+	LOG_FILE=/dev/null
 else
-    LOG_FILE=$LOG_DIRECOTRY/$DISK_MODEL-$(date "+%Y-%m-%d-%H-%M-%S").log
+	# If the -nl option was not specified, then create a file name based on disk info and date
+	if [[ $HAS_SERIAL -eq 1 ]]; then
+		# Set file name (with serial number)
+		LOG_FILE=$LOG_DIRECOTRY/$DISK_MODEL-$DISK_SERIAL-$(date "+%Y-%m-%d-%H-%M-%S").log
+	else
+		# Set file name (without serial number)
+		LOG_FILE=$LOG_DIRECOTRY/$DISK_MODEL-$(date "+%Y-%m-%d-%H-%M-%S").log
+	fi
+	# Create log directory if it doesn't already exist
+	mkdir -p $LOG_DIRECOTRY
 fi
 
 # Log disk info
