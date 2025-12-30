@@ -188,7 +188,7 @@ fi
 # Determine disk model
 DISK_MODEL=$(diskutil info $DISK_FILE | awk -F': *' '/Device \/ Media Name/ {print $2}')
 # Determine disk size
-DISK_SIZE=$(diskutil info "/dev/disk4" | awk -F': *| \\(' '/Disk Size/ {print $2}')
+DISK_SIZE=$(diskutil info $DISK_FILE | awk -F': *| \\(' '/Disk Size/ {print $2}')
 
 # Read back settings for confirmation
 if [[ $DISK_SPECIFIED -eq 0 || $LEVEL_SPECIFIED -eq 0 ]]; then
