@@ -3,7 +3,7 @@ Disk-Houdini is a magician with a very particular trick: it makes your data vani
 
 ## Seriously, though
 Disk-Houdini is a zsh script for macOS that aimes to make using `diskutil secureErase`, to securely erase disks, more convenient.
-A log file is written for each secure erase operation, for accountability.
+A log file is written for each secure erase operation, for accountability (or not, optionally).
 
 ## Target OS
 This script is targeted at macOS with zsh, so macOS Cataline 10.15 or above should work.
