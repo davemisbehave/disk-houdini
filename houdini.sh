@@ -49,6 +49,8 @@ DISK_SPECIFIED=0
 LEVEL_SPECIFIED=0
 SKIP_CONFIRMATION=0
 NO_LOGS=0
+HAS_SERIAL=0
+MODEL_SPECIFIED=0
 
 while (( $# > 0 )); do
     ARG="$1"
@@ -56,67 +58,107 @@ while (( $# > 0 )); do
     case $ARG in
 		-h|--help)
 			tput bold; echo "Usage:"; tput sgr0
-			echo '\t'"$0 [-h|--help] [-p] [-s] [-d <file>] [-l <lvl>]"
+			echo '\t'"$0 [-h|--help] [-p|--pretend] [-s|--skip] [-nl|--nolog] [-d|--disk <file>] [-l|--level <level>] [-m|--model <model>] [-sn|--serial <serial>]"
             
             tput bold; echo '\n'"Description:"; tput sgr0
 			echo '\t'"This script performs a secure erase on a disk and creates"
 			echo '\t'"a log file to go along with it."
 
 			tput bold; echo '\n'"Options:"; tput sgr0
-			echo '\t'"-h, --help	Show this help message and exit."
-			echo '\t'"-p		Pretend Mode (Dry-run). Does not make actual changes to the disk."
-			echo '\t'"-s		Skip user confirmation before erasing."
-			echo '\t'"-d <file>	Specify target disk file."
-			echo '\t'"-l <lvl>	Specify erase level [0 - 4]."
+			echo '\t'"[-h  | --help]		Show this help message and exit."
+			echo '\t'"[-p  | --pretend]	Pretend Mode (Dry-run). Does not make actual changes to the disk."
+			echo '\t'"[-s  | --skip]		Skip user confirmation before erasing."
+			echo '\t'"[-nl | --nolog]		Do not write log file."
+			echo '\t'"[-d  | --disk] <file>	Specify target disk file."
+			echo '\t'"[-l  | --level] <level>	Specify erase level [0 - 4]."
+			echo '\t'"[-m  | --model] <model>	Specify disk model."
+			echo '\t'"[-sn | --serial] <ser>	Specify disk serial number."
 
 			tput bold; echo '\n'"Examples:"; tput sgr0
 			
 			echo '\t'"$0"
 			echo '\t'"$0 -p"
 			echo '\t'"$0 -d /dev/disk5"
-			echo '\t'"$0 -s -d /dev/disk4"
-			echo '\t'"$0 -d /dev/disk6 -l 2 -s -p"
+			echo '\t'"$0 -nl --disk /dev/disk4"
+			echo '\t'"$0 -d /dev/disk6 -l 2 -s --pretend"
+			echo '\t'"$0"' -m "SSD-69-NI-CE" -sn "42LOL123456789"'
             exit 1
             ;;
-		-p)
+		-p|--pretend)
             PRETEND_MODE=1
             ;;
-		-s)
+		-s|--skip)
             SKIP_CONFIRMATION=1
             ;;
-		-nl)
+		-nl|--nolog)
             NO_LOGS=1
             ;;
-		-d)
+		-d|--disk)
             if [[ $DISK_SPECIFIED -eq 0 ]]; then
                 if (( $# > 1 )); then
                     # Store next argument (disk file name)
                     DISK_FILE="$2"
                     # Skip the next argument in the next iteration
                     shift
+					# Flag disk as specified
                     DISK_SPECIFIED=1
                 else
                     echo "No disk specified for -d option. Exiting script."
                     exit 1
 				fi
 			else
-				echo "-d option specified multiple times. Exiting script."
+				echo "-d/--disk option specified multiple times. Exiting script."
 			fi
 			;;
-		-l)
+		-l|--level)
             if [[ $LEVEL_SPECIFIED -eq 0 ]]; then
                 if (( $# > 1 )); then
                     # Store next argument (erase level)
 					ERASE_LEVEL="$2"
                     # Skip the next argument in the next iteration
                     shift
+					# Flag level as specified
 					LEVEL_SPECIFIED=1
                 else
-                    echo "No level specified for -l option. Exiting script."
+                    echo "No level specified for -l/--level option. Exiting script."
                     exit 1
 				fi
 			else
-				echo "-l option specified multiple times. Exiting script."
+				echo "-l/--level option specified multiple times. Exiting script."
+			fi
+			;;
+		-m|--model)
+            if [[ $MODEL_SPECIFIED -eq 0 ]]; then
+                if (( $# > 1 )); then
+                    # Store next argument (model name)
+					DISK_MODEL="$2"
+                    # Skip the next argument in the next iteration
+                    shift
+					# Flag model as specified
+					MODEL_SPECIFIED=1
+                else
+                    echo "No model specified for -m/--model option. Exiting script."
+                    exit 1
+				fi
+			else
+				echo "-m/--model option specified multiple times. Exiting script."
+			fi
+			;;
+		-sn|--serial)
+            if [[ $HAS_SERIAL -eq 0 ]]; then
+                if (( $# > 1 )); then
+                    # Store next argument (erase level)
+					DISK_SERIAL="$2"
+                    # Skip the next argument in the next iteration
+                    shift
+					# Flag serial as specified
+					HAS_SERIAL=1
+                else
+                    echo "No serial specified for -sn/--serial option. Exiting script."
+                    exit 1
+				fi
+			else
+				echo "-sn/--serial option specified multiple times. Exiting script."
 			fi
 			;;
 		*)
@@ -183,16 +225,23 @@ case "$ERASE_LEVEL" in
 	4)	ERASE_LVL_DESCRIPTION=$ERASE_LVL_4_DESCRIPTION ;;
 esac
 
-# Determine disk serial number
-if smartctl -i $DISK_FILE >/dev/null 2>&1; then
-    HAS_SERIAL=1
-    DISK_SERIAL=$(smartctl -i $DISK_FILE | awk -F'Serial Number:[[:space:]]*' '/Serial Number/ {print $2}')
-else
-    HAS_SERIAL=0
-    DISK_SERIAL=none
+# If no serial number was specified with the -sn/--serial argument
+if [[ $HAS_SERIAL -eq 0 ]]; then
+	# Determine disk serial number
+	if smartctl -i $DISK_FILE >/dev/null 2>&1; then
+		HAS_SERIAL=1
+		DISK_SERIAL=$(smartctl -i $DISK_FILE | awk -F'Serial Number:[[:space:]]*' '/Serial Number/ {print $2}')
+	else
+		DISK_SERIAL=none
+	fi
 fi
-# Determine disk model
-DISK_MODEL=$(diskutil info $DISK_FILE | awk -F': *' '/Device \/ Media Name/ {print $2}')
+
+# If no model name was specified with the -m/--model argument
+if [[ $MODEL_SPECIFIED -eq 0 ]]; then
+	# Determine disk model
+	DISK_MODEL=$(diskutil info $DISK_FILE | awk -F': *' '/Device \/ Media Name/ {print $2}')
+fi
+
 # Determine disk size
 DISK_SIZE=$(diskutil info $DISK_FILE | awk -F': *| \\(' '/Disk Size/ {print $2}')
 
@@ -207,7 +256,7 @@ else
 fi
 echo "Disk:"'\t''\t'"$DISK_FILE"
 echo "Model:"'\t''\t'"$DISK_MODEL"
-if [[ $HAS_SERIAL -eq 0 ]]; then
+if [[ $HAS_SERIAL -eq 1 ]]; then
     echo "Serial Number:"'\t'"$DISK_SERIAL"
 fi
 echo "Size:"'\t''\t'"$DISK_SIZE"
