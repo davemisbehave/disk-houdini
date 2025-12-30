@@ -234,7 +234,7 @@ printf '\n'
 
 # Unmount disk
 if [[ $PRETEND_MODE -eq 0 ]]; then
-	diskutil unmountDisk $DISK_FILE
+	diskutil unmountDisk force $DISK_FILE
 	STATUS=$?
 	if [[ $STATUS -ne 0 ]]; then
 		tput bold; echo "Could not unmount $DISK_FILE. Exiting script."; tput sgr0
