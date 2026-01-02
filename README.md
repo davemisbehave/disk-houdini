@@ -2,7 +2,7 @@
 Disk-Houdini is a magician with a very particular trick: it makes your data vanish without a trace.
 
 ## Seriously, though
-Disk-Houdini is a zsh script for macOS that aimes to make using `diskutil secureErase`, to securely erase disks, more convenient.
+Disk-Houdini is a zsh script for macOS that aims to make using `diskutil secureErase`, to securely erase disks, more convenient.
 A log file is written for each secure erase operation, for accountability (or not, optionally).
 
 ## Target OS
@@ -12,7 +12,7 @@ It was written and tested on macOS Tahoe 26.
 ## Prerequisites
 ### Software
 The only thing needed, that is not already included with macos is `smartctl`.
-The easiest way to install this is using [brew](https://brew.sh).
+The easiest way to install this is using [Homebrew](https://brew.sh).
 ```
 brew install smartmontools
 ```
