@@ -17,16 +17,17 @@ The easiest way to install this is using [brew](https://brew.sh).
 brew install smartmontools
 ```
 ### Privileges
-The script needs to be run either with sudo or as root.
+The user that runs the script must be a sudoer, or be root.
+The script itself does not need to be run with sudo, but some commands in it are called with sudo, so a password is still necessary in most cases.
 
 ## Usage
 The script can be called without arguments:
 ```
-sudo ./houdini.sh
+./houdini.sh
 ```
-Specify the `-h` (or `--help`) argument for a description of how to use.
+Specify the `-h` (or `--help`) argument for a description of all the arguments and how to use them.
 ```
-sudo ./houdini.sh -h
+./houdini.sh -h
 ```
 
 More info on usage and all arguments will follow...
