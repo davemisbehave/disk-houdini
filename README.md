@@ -44,18 +44,18 @@ Skip user confirmation before erasing.
 Do not write log file.
 #### `-d` <disk> / `--disk` <disk>
 Specify target disk file.
-#### `-lv` <level> / `--level` <level>
+#### `-lv <level>` / `--level <level>`
 Specify erase level [0 - 4].
 - 0: Single-pass zero fill erase.
 - 1: Single-pass random fill erase.
 - 2: Seven-pass erase, consisting of zero fills and all-ones fills plus a final random fill.
 - 3: Gutmann algorithm 35-pass erase.
 - 4: Three-pass erase, consisting of two random fills plus a final zero fill.
-#### `-la` <label> / `--label` <label>
+#### `-la <label>` / `--label <label>`
 Specify label. This might be any custom label, for any purpose. It will be part of the log file's file name, and be documented inside the log file. This might be something like "discard after erasing" or "blue external hard drive", for example.
-#### `-m` <model> / `--model` <model>
+#### `-m <model>` / `--model <model>`
 This lets you manually specify a disk model. It will take precedence over the automatically determined model name, which is not always helpful or accurate.
-#### `-sn` <serial> / `--serial` <serial>
+#### `-sn <serial>` / `--serial <serial>`
 This lets you manually specify a disk serial number. It will take precedence over the automatically determined serial, which is not always helpful or accurate, or can often not be read at all.
 ### Examples
 #### Help
