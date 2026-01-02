@@ -34,7 +34,7 @@ The script can be called as is, without arguments. The script will guide the use
 ### With Arguments
 The following arguments can optionally be specified:
 #### `-h` / `--help`
-This shows a summary of the available arguments and exits the script. Any other arguments are ignored if -h or --help is specified.
+This shows a summary of the available arguments and exits the script. Any other arguments are ignored if `-h` or `--help` is specified.
 #### `-p` / `--pretend`
 Pretend Mode (Dry-run). It goes through all the motions, but does not make actual changes to the disk. It is useful for practicing.
 It runs a `sleep(3)` command instead of the `diskutil secureErase` command when it comes to the erasing part of the script. The console output and log files indicate that the script was run in pretend-mode, and that no actual changes were made to the disk.
