@@ -42,7 +42,7 @@ It runs a `sleep(3)` command instead of the `diskutil secureErase` command when 
 Skip user confirmation before erasing.
 #### `-nl` / `--nolog`
 Do not write log file.
-#### `-d` <disk> / `--disk` <disk>
+#### `-d <disk>` / `--disk <disk>`
 Specify target disk file.
 #### `-lv <level>` / `--level <level>`
 Specify erase level [0 - 4].
