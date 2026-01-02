@@ -1,13 +1,18 @@
 # Disk-Houdini
 Disk-Houdini is a magician with a very particular trick: it makes your data vanish without a trace.
 
-## Seriously, though
+**This is is a learning-by-doing exercise for me**, and the first shell script I wrote that has more than about 10 lines. I'm writing it primarily in order to learn zsh scripting. I am sure there are loads of much better and more robust tools out there, than what I'm doing here. 
+
+**Look elsewhere, and to someone who knows what they're doing, if you want a reliable tool for wiping drives.**
+
+## Seriously, though 
 Disk-Houdini is a zsh script for macOS that aims to make using `diskutil secureErase`, to securely erase disks, more convenient.
-A log file is written for each secure erase operation, for accountability (or not, optionally).
+A log file is written for each secure erase operation (or not, optionally).
 
 ## Target OS
-This script is targeted at macOS with zsh, so macOS Cataline 10.15 or above should work.
-It was written and tested on macOS Tahoe 26.
+- This script is targeted at macOS with zsh, so macOS Cataline 10.15 or above *should* work.
+- It was written and tested on macOS Tahoe 26.
+- Currently not compatible with other UNIX or UNIX-like systems, as it relies on the macOS-exclusive `diskutil` command to do the secure erasing.
 
 ## Prerequisites
 ### Software
@@ -31,7 +36,8 @@ The following arguments can optionally be specified:
 #### `-h` / `--help`
 This shows a summary of the available arguments and exits the script. Any other arguments are ignored if -h or --help is specified.
 #### `-p` / `--pretend`
-Pretend Mode (Dry-run). Does not make actual changes to the disk.
+Pretend Mode (Dry-run). It goes through all the motions, but does not make actual changes to the disk. It is useful for practicing.
+It runs a `sleep(3)` command instead of the `diskutil secureErase` command when it comes to the erasing part of the script. The console output and log files indicate that the script was run in pretend-mode, and that no actual changes were made to the disk.
 #### `-s` / `--skip`
 Skip user confirmation before erasing.
 #### `-nl` / `--nolog`
