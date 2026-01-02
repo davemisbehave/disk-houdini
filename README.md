@@ -27,7 +27,7 @@ The script can be called as is, without arguments. The script will guide the use
 ./houdini.sh
 ```
 ### With Arguments
-The following arguments can optionally be specified
+The following arguments can optionally be specified:
 #### `-h` / `--help`
 This shows a summary of the available arguments and exits the script. Any other arguments are ignored if -h or --help is specified.
 #### `-p` / `--pretend`
@@ -40,10 +40,10 @@ Do not write log file.
 Specify target disk file.
 #### `-lv` <level> / `--level` <level>
 Specify erase level [0 - 4].
-- 0: Single-pass zero fill erase
-- 1: Single-pass random fill erase
-- 2: Seven-pass erase, consisting of zero fills and all-ones fills plus a final random fill
-- 3: Gutmann algorithm 35-pass erase
+- 0: Single-pass zero fill erase.
+- 1: Single-pass random fill erase.
+- 2: Seven-pass erase, consisting of zero fills and all-ones fills plus a final random fill.
+- 3: Gutmann algorithm 35-pass erase.
 - 4: Three-pass erase, consisting of two random fills plus a final zero fill.
 #### `-la` <label> / `--label` <label>
 Specify label. This might be any custom label, for any purpose. It will be part of the log file's file name, and be documented inside the log file. This might be something like "discard after erasing" or "blue external hard drive", for example.
@@ -56,12 +56,12 @@ This lets you manually specify a disk serial number. It will take precedence ove
 ```
 ./houdini.sh --help
 ```
-### Pretend/Practice run with erase level 2
+#### Pretend/Practice run with erase level 2
 
 ```
 ./houdini.sh -p --level 2
 ```
-### Disk `/dev/disk4` selected, no log file
+#### Disk `/dev/disk4` selected, no log file
 ```
 ./houdini.sh -d /dev/disk4 -nl
 ```
