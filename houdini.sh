@@ -70,7 +70,7 @@ while (( $# > 0 )); do
     case $ARG in
 		-h|--help)
 			tput bold; echo "Usage:"; tput sgr0
-			echo '\t'"$0 [-h|--help] [-p|--pretend] [-s|--skip] [-nl|--nolog] [-d|--disk <file>] [-lv|--level <level>] [-la|--label <label>] [-m|--model <model>] [-sn|--serial <serial>]"
+			echo '\t'"$0 [-h|--help] [-p|--pretend] [-s|--skip] [-nl|--nolog] [-d|--disk <disk>] [-lv|--level <level>] [-la|--label <label>] [-m|--model <model>] [-sn|--serial <serial>]"
             
             tput bold; echo '\n'"Description:"; tput sgr0
 			echo '\t'"This script performs a secure erase on a disk and creates"
@@ -81,7 +81,7 @@ while (( $# > 0 )); do
 			echo '\t'"[-p  | --pretend]	Pretend Mode (Dry-run). Does not make actual changes to the disk."
 			echo '\t'"[-s  | --skip]		Skip user confirmation before erasing."
 			echo '\t'"[-nl | --nolog]		Do not write log file."
-			echo '\t'"[-d  | --disk] <file>	Specify target disk file."
+			echo '\t'"[-d  | --disk] <disk>	Specify target disk file."
 			echo '\t'"[-lv | --level] <level>	Specify erase level [0 - 4]."
 			echo '\t'"[-la | --label] <label>	Specify label."
 			echo '\t'"[-m  | --model] <model>	Specify disk model."
@@ -92,8 +92,8 @@ while (( $# > 0 )); do
 			echo '\t'"$0"
 			echo '\t'"$0 --help"
 			echo '\t'"$0 -p"
-			echo '\t'"$0 -d /dev/disk5"
-			echo '\t'"$0 -nl --disk /dev/disk4"
+			echo '\t'"$0 -d /dev/disk4"
+			echo '\t'"$0 -nl --disk /dev/disk5"
 			echo '\t'"$0 -d /dev/disk6 -lv 2 -s --pretend"
 			echo '\t'"$0"' -m "SSD-69-NI-CE" -sn "42LOL123456789" -la "Discard"'
             exit 1
