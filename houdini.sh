@@ -11,8 +11,24 @@
 # Treat unset variables as errors (-u) and fail pipe on any command (-o pipefail)
 set -uo pipefail
 
-# Directory to store logs of each erase process
-LOG_DIRECOTRY="$HOME/Houdini Logs"
+log_only() {
+	local msg="$1"
+	if [[ $EUID -eq 0 && -n ${SUDO_UID-} ]]; then
+		sudo -u "#$CALLER_UID" -g "#$CALLER_GID" sh -c 'printf "%b\n" "$1" >> "$2"' sh "$msg" "$LOG_FILE"
+	else
+		printf "%b\n" "$msg" >> "$LOG_FILE"
+	fi
+}
+
+log_and_print() {
+	local msg="$1"
+	if [[ $EUID -eq 0 && -n ${SUDO_UID-} ]]; then
+		# Terminal output happens as root (fine); file append happens as caller
+		printf "%b\n" "$msg" | tee -a >(sudo -u "#$CALLER_UID" -g "#$CALLER_GID" cat >> "$LOG_FILE")
+	else
+		printf "%b\n" "$msg" | tee -a "$LOG_FILE"
+	fi
+}
 
 # Erase level descriptions
 ERASE_LVL_0_DESCRIPTION="Single-pass zero fill erase"
@@ -20,6 +36,7 @@ ERASE_LVL_1_DESCRIPTION="Single-pass random fill erase"
 ERASE_LVL_2_DESCRIPTION="Seven-pass erase, consisting of zero fills and all-ones fills plus a final random fill"
 ERASE_LVL_3_DESCRIPTION="Gutmann algorithm 35-pass erase"
 ERASE_LVL_4_DESCRIPTION="Three-pass erase, consisting of two random fills plus a final zero fill"
+
 
 # Ensure macOS
 if [[ "$(uname -s)" != "Darwin" ]]; then
@@ -35,12 +52,6 @@ if ! command -v smartctl >/dev/null 2>&1; then
 	tput bold; echo "smartctl not installed."; tput sgr0
 	echo "Install with: brew install smartmontools"
 	exit 1
-fi
-
-# Ensure sudo or root
-if [[ $EUID -ne 0 ]]; then
-    echo "This script must be run with sudo or as root. Exiting script."
-    exit 1
 fi
 
 # Defaults for flags assumed before processing arguments (which might change their values)
@@ -79,6 +90,7 @@ while (( $# > 0 )); do
 			tput bold; echo '\n'"Examples:"; tput sgr0
 			
 			echo '\t'"$0"
+			echo '\t'"$0 --help"
 			echo '\t'"$0 -p"
 			echo '\t'"$0 -d /dev/disk5"
 			echo '\t'"$0 -nl --disk /dev/disk4"
@@ -303,9 +315,9 @@ fi
 # Keep the console output tidy
 printf '\n'
 
-# Unmount disk
+# Unmount disk, or pretend to, depending on whether pretend mode (-p/--pretend) is specified
 if [[ $PRETEND_MODE -eq 0 ]]; then
-	diskutil unmountDisk force $DISK_FILE
+	sudo diskutil unmountDisk force $DISK_FILE
 	STATUS=$?
 	if [[ $STATUS -ne 0 ]]; then
 		tput bold; echo "Could not unmount $DISK_FILE. Exiting script."; tput sgr0
@@ -329,34 +341,100 @@ else
 		# Blank label
 		FILE_LABEL=""
 	fi
+	
+	# Determine who is running the script (sudo/no sudo, root)
+	if [[ $EUID -eq 0 ]]; then
+		if [[ -n "$SUDO_USER" ]]; then
+			# Running as root via sudo (original user: $SUDO_USER)
+			# Record the home folder, user- and group ID of the original user that called sudo (not root's)
+			CALLER_HOME=$(eval echo "~$SUDO_USER")
+			CALLER_UID=$SUDO_UID
+			CALLER_GID=$SUDO_GID
+		else
+			# Running as root (not via sudo)
+			# Record the shared user's home directory, rather than root's
+			CALLER_HOME=/Users/Shared
+			# Set GID to wheel and UID to root, as is customary for the shared user's files/folders
+			CALLER_UID=$EUID
+			CALLER_GID=$(dscl . -read /Groups/wheel PrimaryGroupID | awk '{print $2}')
+		fi
+	else
+		# Running as non-root user (no sudo)
+		# Record the home folder, UID and GID of the caller
+		CALLER_HOME=$HOME
+		CALLER_UID=$EUID
+		CALLER_GID=$(id -g)
+	fi
+	
+	# Directory to store logs of each erase process
+	LOG_DIRECTORY="$CALLER_HOME/Houdini Logs"
 
+	# Check whether a something (file, folder, ...) exists with the name of the log directory
+	if [[ -e $LOG_DIRECTORY ]]; then
+		# Ensure pre-existing log dir is actually a directory
+		if [[ -d $LOG_DIRECTORY ]]; then
+			# Determine log directory and file UID and GID
+			LOG_DIR_UID=$(stat -f %u $LOG_DIRECTORY)
+			LOG_DIR_GID=$(stat -f %g $LOG_DIRECTORY)
+		
+			# Check if the UID or GID of the log folder are not correct
+			if [[ "$LOG_DIR_UID" -ne "$CALLER_UID" || "$LOG_DIR_GID" -ne "$CALLER_GID" ]]; then
+				# Set correct permissions for log folder
+				sudo chown "$CALLER_UID:$CALLER_GID" $LOG_DIRECTORY
+			fi
+		else
+			tput bold
+			echo "Cannot write log files to $LOG_DIRECTORY as it is not a directory."
+			echo "Exiting script without making changes to $DISK_FILE."
+			tput sgr0
+			exit 1
+		fi
+	fi
+	
 	# Create a file name based on disk info and date
 	if [[ $HAS_SERIAL -eq 1 ]]; then
 		# Set file name (with serial number)
-		LOG_FILE=$LOG_DIRECOTRY/$DISK_MODEL-$DISK_SERIAL$FILE_LABEL-$(date "+%Y-%m-%d-%H-%M-%S").log
+		LOG_FILE=$LOG_DIRECTORY/$DISK_MODEL-$DISK_SERIAL$FILE_LABEL-$(date "+%Y-%m-%d-%H-%M-%S").log
 	else
 		# Set file name (without serial number)
-		LOG_FILE=$LOG_DIRECOTRY/$DISK_MODEL$FILE_LABEL-$(date "+%Y-%m-%d-%H-%M-%S").log
+		LOG_FILE=$LOG_DIRECTORY/$DISK_MODEL$FILE_LABEL-$(date "+%Y-%m-%d-%H-%M-%S").log
 	fi
 	
-	# Create log directory if it doesn't already exist
-	mkdir -p $LOG_DIRECOTRY
+	# Create directory and file in a way the caller can write to
+	if [[ $EUID -eq 0 ]]; then
+		# Create file and folder with proper permissions (prevents them from being root-owned if called with sudo)
+		sudo -u "#$CALLER_UID" -g "#$CALLER_GID" mkdir -p -- "$LOG_DIRECTORY"
+		sudo -u "#$CALLER_UID" -g "#$CALLER_GID" sh -c ': >> "$1"' sh "$LOG_FILE"
+	else
+		mkdir -p -- $LOG_DIRECTORY
+		: >> "$LOG_FILE"
+	fi
+	
+	# Determine log file UID and GID
+	LOG_FILE_UID=$(stat -f %u "$LOG_FILE")
+	LOG_FILE_GID=$(stat -f %g "$LOG_FILE")
+	
+	# Check if the UID or GID of the log file are not correct
+	if [[ "$LOG_FILE_UID" -ne "$CALLER_UID" || "$LOG_FILE_GID" -ne "$CALLER_GID" ]]; then
+		# Set correct permissions for log file
+		sudo chown "$CALLER_UID:$CALLER_GID" "$LOG_FILE"
+	fi
 fi
 
 # Log disk info
-echo "Model:"'\t''\t'"$DISK_MODEL" >> $LOG_FILE
-echo "Serial Number:"'\t'"$DISK_SERIAL" >> $LOG_FILE
+log_only "Model:\t\t$DISK_MODEL"
+log_only "Serial Number:\t$DISK_SERIAL"
 if [[ $LABEL_SPECIFIED -eq 1 ]]; then
-    echo "Label:"'\t''\t'"$LABEL"
+    log_only "Label:\t\t$LABEL"
 fi
-echo "Size:"'\t''\t'"$DISK_SIZE" >> $LOG_FILE
-echo "Erase level:"'\t'"$ERASE_LEVEL ($ERASE_LVL_DESCRIPTION)"'\n' >> $LOG_FILE
+log_only "Size:\t\t$DISK_SIZE"
+log_only "Erase level:\t$ERASE_LEVEL ($ERASE_LVL_DESCRIPTION)\n"
 
 # Print the time and date the erase process was started at
 if [[ $PRETEND_MODE -eq 0 ]]; then
-	echo "Starting secure erase on $(date)" | tee -a $LOG_FILE
+	log_and_print "Starting secure erase on $(date)"
 else
-	echo "Starting pretend-secure erase on $(date)" | tee -a $LOG_FILE
+	log_and_print "Starting pretend-secure erase on $(date)"
 fi
 
 # Record start time (epoch seconds)
@@ -364,7 +442,7 @@ START_EPOCH=$(date +%s)
 
 # Perform secure erase
 if [[ $PRETEND_MODE -eq 0 ]]; then
-	diskutil secureErase $ERASE_LEVEL $DISK_FILE
+	sudo diskutil secureErase $ERASE_LEVEL $DISK_FILE
 	STATUS=$?
 else
 	STATUS=0
@@ -380,21 +458,21 @@ END_EPOCH=$(date +%s)
 tput bold
 if [[ $STATUS -eq 0 ]]; then
 	if [[ $PRETEND_MODE -eq 0 ]]; then
-		echo "Secure erase completed successfully on $END_DATE" | tee -a $LOG_FILE
+		log_and_print "Secure erase completed successfully on $END_DATE"
 	else
-		echo "Pretend-secure erase completed successfully on $END_DATE." | tee -a $LOG_FILE
+		log_and_print "Pretend-secure erase completed successfully on $END_DATE."
 	fi
 else
 	if [[ $PRETEND_MODE -eq 0 ]]; then
-		echo "Secure erase failed (exit code: $STATUS) on $END_DATE" | tee -a $LOG_FILE
+		log_and_print "Secure erase failed (exit code: $STATUS) on $END_DATE"
 	else
-		echo "Pretend-secure erase failed (exit code: $STATUS) on $END_DATE" | tee -a $LOG_FILE
+		log_and_print "Pretend-secure erase failed (exit code: $STATUS) on $END_DATE"
 	fi
 fi
 tput sgr0
 
 if [[ $PRETEND_MODE -eq 1 ]]; then
-	echo "Pretend option enabled: No changes were actually made to the disk." | tee -a $LOG_FILE
+	log_and_print "Pretend option enabled: No changes were made to the disk."
 fi
 
 # Calculate elapsed time
@@ -408,13 +486,13 @@ SECONDS=$((REMAINDER % 60))
 
 # Print formatted duration
 if (( DAYS > 0 )); then
-    echo "Elapsed time: ${DAYS}d ${HOURS}h ${MINUTES}m ${SECONDS}s" | tee -a $LOG_FILE
+	log_and_print "Elapsed time: ${DAYS}d ${HOURS}h ${MINUTES}m ${SECONDS}s"
 elif (( HOURS > 0 )); then
-    echo "Elapsed time: ${HOURS}h ${MINUTES}m ${SECONDS}s" | tee -a $LOG_FILE
+	log_and_print "Elapsed time: ${HOURS}h ${MINUTES}m ${SECONDS}s"
 elif (( MINUTES > 0 )); then
-    echo "Elapsed time: ${MINUTES}m ${SECONDS}s" | tee -a $LOG_FILE
+	log_and_print "Elapsed time: ${MINUTES}m ${SECONDS}s"
 else
-    echo "Elapsed time: ${SECONDS}s" | tee -a $LOG_FILE
+	log_and_print "Elapsed time: ${SECONDS}s"
 fi
 
 # Done
