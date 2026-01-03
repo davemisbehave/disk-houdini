@@ -72,7 +72,7 @@ This lets you manually specify a disk serial number. It will take precedence ove
 ./houdini.sh -d /dev/disk4 -nl
 ```
 ## Log File
-A log file is written as soon as the erase process starts, unless the `-p` / `--pretend` option is enabled.
+A log file is written as soon as the erase process starts, unless the `-nl` / `--nolog` option is specified.
 The location of the log file is in a folder inside the home directory of the caller (even if it is called with sudo):
 ```
 ~/Houdini Logs/
